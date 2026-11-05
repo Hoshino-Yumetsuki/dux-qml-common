@@ -53,6 +53,10 @@ The theme's `shapeMorph` and `pillControls` bools are false in the shell's Class
 On macOS, the host supplies `NativePlatform.localContent(path)`. File previews
 honor each entry's `dataless` state and avoid reading cloud-only file contents.
 
+`SearchModel.contentAvailable` reports indexed content-search support even when
+name results use the walker. Asynchronous search errors reach `error`/`errorCode`;
+`FileViewBody.errorText` lets consumers display the backend explanation.
+
 ## Development
 
 The repo root is a runnable quickshell config with the stubs and a widget gallery:

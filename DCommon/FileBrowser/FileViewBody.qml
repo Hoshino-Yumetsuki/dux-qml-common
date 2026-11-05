@@ -28,6 +28,7 @@ FocusScope {
     property bool showSelectionFooter: true
     property bool escapeClearsSelection: true
     property string emptyText: I18n.tr("This folder is empty", "empty directory placeholder")
+    property string errorText: FileFormat.listingError(directory.errorCode)
     property color surfaceColor: "transparent"
     property color chipColor: Style.chipSurface
     property Component header: null
@@ -872,7 +873,7 @@ FocusScope {
         anchors.centerIn: viewLoader
         width: viewLoader.width - Style.spacingL * 2
         visible: body.directory.error !== ""
-        text: FileFormat.listingError(body.directory.errorCode)
+        text: body.errorText
         color: Style.surfaceVariantText
         font.pixelSize: Style.fontSizeLarge
         horizontalAlignment: Text.AlignHCenter

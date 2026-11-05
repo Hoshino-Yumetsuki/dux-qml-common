@@ -29,6 +29,7 @@ QtObject {
     property string searchId: ""
     property string servedBy: ""
     property string indexPhase: ""
+    property bool contentAvailable: false
     property int depthLimit: 0
 
     readonly property string path: rootPath
@@ -276,6 +277,7 @@ QtObject {
             return;
         switch (data.kind) {
         case "backend":
+            contentAvailable = data.backend === "index" || data.contentAvailable === true;
             servedBy = data.backend || "";
             indexPhase = data.phase || "";
             depthLimit = data.depthLimit || 0;
@@ -285,6 +287,10 @@ QtObject {
                 _insert(entry);
             total = data.count || _rows.length;
             listed();
+            break;
+        case "error":
+            error = data.error || data.reason || data.code || "Search failed";
+            errorCode = data.code || "";
             break;
         case "done":
             total = data.count || _rows.length;
