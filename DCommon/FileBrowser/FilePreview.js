@@ -15,6 +15,8 @@ function viewerFor(entry, imageSizeLimit) {
         return "folder";
     if (entry.unreadable || entry.symlinkBroken)
         return "";
+    if (entry.dataless)
+        return entry.thumbnailable ? "thumbnail" : "";
     const mime = entry.mime ?? "";
     if (mime === "image/svg+xml")
         return "svg";

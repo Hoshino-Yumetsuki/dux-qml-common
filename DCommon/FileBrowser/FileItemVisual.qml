@@ -11,6 +11,7 @@ Item {
     property string thumbnail: ""
     property string path: ""
     property string mime: ""
+    property bool dataless: false
     property bool isDir: false
     property bool isSymlink: false
     property bool symlinkBroken: false
@@ -33,7 +34,7 @@ Item {
         anchors.fill: parent
         iconName: root.iconName
         iconOverride: root.look?.icon ?? ""
-        thumbnail: root.thumbnail !== "" ? root.thumbnail : root.mime === "image/svg+xml" ? root.path : ""
+        thumbnail: root.thumbnail !== "" ? root.thumbnail : root.mime === "image/svg+xml" && FilePaths.localContent(root.path, root.dataless) ? root.path : ""
         size: root.iconSize
         color: root.isDir && !root.selected ? Style.primary : root.tint
         tint: root.look?.color || "transparent"

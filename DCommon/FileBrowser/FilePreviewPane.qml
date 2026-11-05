@@ -34,7 +34,7 @@ Item {
         const chosen = FilePreview.viewerFor(entry, imageSizeLimit);
         return readsAllowed || chosen === "folder" ? chosen : "";
     }
-    readonly property string identityKey: `${readsAllowed}:${imageSizeLimit}:${includeHidden}:${thumbnailsEnabled}\n` + shownEntries.map(item => `${item.path}:${item.mime}:${item.thumbnailable}`).join("\n")
+    readonly property string identityKey: `${readsAllowed}:${imageSizeLimit}:${includeHidden}:${thumbnailsEnabled}\n` + shownEntries.map(item => `${item.path}:${item.mime}:${item.thumbnailable}:${item.dataless}`).join("\n")
     readonly property string versionKey: shownEntries.map(item => `${item.mtimeMs}:${item.size}`).join("\n")
     readonly property var viewerItem: current ? viewerLoader.item : null
     readonly property var rows: {
@@ -182,7 +182,7 @@ Item {
                 return "";
             if (pane.entry.thumbnail)
                 return FilePaths.toFileUrl(pane.entry.thumbnail);
-            return pane.viewer === "svg" ? FilePaths.toFileUrl(pane.entry.path) : "";
+            return pane.viewer === "svg" && FilePaths.localContent(pane.entry.path, pane.entry.dataless) ? FilePaths.toFileUrl(pane.entry.path) : "";
         }
         readonly property bool standing: stand !== "" && standIn.status === Image.Ready
         readonly property real standRaster: iconSize * (Window.window?.devicePixelRatio ?? Screen.devicePixelRatio)
@@ -207,6 +207,7 @@ Item {
             iconName: pane.entry?.iconName ?? ""
             path: pane.entry?.path ?? ""
             thumbnail: pane.entry?.thumbnail ?? ""
+            dataless: pane.entry?.dataless ?? false
             mime: pane.entry?.mime ?? ""
             isDir: pane.entry?.isDir ?? false
             isSymlink: pane.entry?.isSymlink ?? false

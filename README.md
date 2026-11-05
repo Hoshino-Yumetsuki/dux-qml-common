@@ -50,6 +50,9 @@ The stubs in `Common/` and `Services/` are the full list of what the library rea
 
 The theme's `shapeMorph` and `pillControls` bools are false in the shell's Classic interface style; a theme without them reads as true. `Style.buttonRadius` follows both: no press morph, and one `cornerRadiusL` for every control instead of pills. `DButtonGroup` without pills spaces its segments by `spacingXS` and rounds every corner, so they read as separate buttons.
 
+On macOS, the host supplies `NativePlatform.localContent(path)`. File previews
+honor each entry's `dataless` state and avoid reading cloud-only file contents.
+
 ## Development
 
 The repo root is a runnable quickshell config with the stubs and a widget gallery:

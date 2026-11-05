@@ -18,6 +18,7 @@ FileItemSurface {
     required property bool untrusted
     required property bool unreadable
     required property bool hidden
+    required property var model
 
     readonly property string highlight: view?.nameHighlight ?? ""
 
@@ -47,6 +48,7 @@ FileItemSurface {
             thumbnail: tile.thumbnail
             path: tile.path
             mime: tile.mime
+            dataless: tile.model.dataless ?? false
             isDir: tile.isDir
             isSymlink: tile.isSymlink
             symlinkBroken: tile.symlinkBroken

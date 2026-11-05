@@ -40,6 +40,7 @@ Item {
             "mime": item.mime,
             "isDir": item.isDir,
             "size": item.size,
+            "dataless": item.dataless,
             "thumbnailable": item.thumbnailable
         };
     }

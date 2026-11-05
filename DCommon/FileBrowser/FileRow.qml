@@ -63,6 +63,7 @@ FileItemSurface {
         thumbnail: row.thumbnail
         path: row.path
         mime: row.mime
+        dataless: row.model.dataless ?? false
         isDir: row.isDir
         isSymlink: row.isSymlink
         symlinkBroken: row.symlinkBroken

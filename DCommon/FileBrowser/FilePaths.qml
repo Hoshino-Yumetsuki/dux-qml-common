@@ -14,6 +14,10 @@ Singleton {
         return "file://" + path.split("/").map(segment => encodeURIComponent(segment)).join("/");
     }
 
+    function localContent(path, dataless) {
+        return !dataless && (Qt.platform.os !== "osx" || NativePlatform.localContent(path));
+    }
+
     function fromUrl(value) {
         const text = String(value ?? "");
         if (!text.startsWith("file://"))

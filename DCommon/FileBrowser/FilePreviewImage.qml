@@ -44,6 +44,10 @@ Item {
         fromThumbnail = false;
         if (!entry)
             return;
+        if (pane.settledViewer !== "thumbnail" && !FilePaths.localContent(entry.path, entry.dataless)) {
+            loadThumbnail();
+            return;
+        }
         switch (pane.settledViewer) {
         case "thumbnail":
             loadThumbnail();
