@@ -56,20 +56,13 @@ Item {
     readonly property real rowGap: vertical ? digitsHeight * 0.06 : 0
     readonly property real rowHeight: vertical ? (digitsHeight - rowGap) / 2 : digitsHeight
     readonly property real digitSize: Math.max(1, Math.min(widthSize, rowHeight / inkRatio))
+    readonly property real cellWidth: digitSize * cellMetrics.advanceWidth / referenceSize
     readonly property real inkHeight: digitSize * inkRatio
     readonly property real blockHeight: inkHeight * (vertical ? 2 : 1) + rowGap + supportHeight
     readonly property real blockTop: (height - blockHeight) / 2
 
     implicitWidth: Style.fontSizeDisplay * 6
     implicitHeight: Style.fontSizeDisplay * 4
-
-    function escapedDigits(text) {
-        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    function span(text, spanColor) {
-        return spanColor === root.color ? escapedDigits(text) : `<font color="${spanColor}">${escapedDigits(text)}</font>`;
-    }
 
     function inkTop(label) {
         return label.baselineOffset + digitInk.y * digitSize / referenceSize;
@@ -79,6 +72,12 @@ Item {
         id: digitMetrics
         font: root.metricsFont
         text: "0123456789"
+    }
+
+    TextMetrics {
+        id: cellMetrics
+        font: root.metricsFont
+        text: root.widestDigit
     }
 
     TextMetrics {
@@ -93,24 +92,50 @@ Item {
         text: (root.vertical ? (root.hours.length > root.minutes.length ? root.hours : root.minutes) : root.timeText).replace(/\d/g, root.widestDigit)
     }
 
-    Digits {
-        id: digitsRow
-        readonly property bool accented: !root.vertical && (root.minutesColor !== root.color || (root.inlineSeconds && root.secondsColor !== root.color))
-        y: root.blockTop - root.inkTop(digitsRow)
-        textFormat: accented ? Text.StyledText : Text.PlainText
-        text: {
-            if (root.vertical)
-                return root.hours;
-            if (!accented)
-                return root.timeText;
-            return root.escapedDigits(root.hours + ":") + root.span(root.minutes, root.minutesColor) + (root.inlineSeconds ? root.span(":" + root.seconds, root.secondsColor) : "");
+    Row {
+        visible: !root.vertical
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: root.blockTop - root.inkTop(colon)
+        LayoutMirroring.enabled: false
+
+        DigitCells {
+            text: root.hours
+        }
+
+        Digits {
+            id: colon
+            text: ":"
+        }
+
+        DigitCells {
+            text: root.minutes
+            color: root.minutesColor
+        }
+
+        Digits {
+            visible: root.inlineSeconds
+            text: ":"
+            color: root.secondsColor
+        }
+
+        DigitCells {
+            visible: root.inlineSeconds
+            text: root.seconds
+            color: root.secondsColor
         }
     }
 
-    Digits {
-        id: minutesRow
+    DigitCells {
         visible: root.vertical
-        y: root.blockTop + root.inkHeight + root.rowGap - root.inkTop(minutesRow)
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: root.blockTop - root.inkTop(colon)
+        text: root.hours
+    }
+
+    DigitCells {
+        visible: root.vertical
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: root.blockTop + root.inkHeight + root.rowGap - root.inkTop(colon)
         text: root.minutes
         color: root.minutesColor
     }
@@ -133,7 +158,6 @@ Item {
     }
 
     component Digits: StyledText {
-        width: root.width
         color: root.color
         font.pixelSize: root.digitSize
         font.family: root.digitFamily
@@ -145,5 +169,25 @@ Item {
         wrapMode: Text.NoWrap
         elide: Text.ElideNone
         LayoutMirroring.enabled: false
+    }
+
+    component DigitCells: Row {
+        id: cells
+
+        property string text
+        property color color: root.color
+
+        LayoutMirroring.enabled: false
+
+        Repeater {
+            model: cells.text.length
+
+            Digits {
+                required property int index
+                width: root.cellWidth
+                text: cells.text.charAt(index)
+                color: cells.color
+            }
+        }
     }
 }

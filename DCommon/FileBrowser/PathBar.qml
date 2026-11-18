@@ -12,6 +12,10 @@ FocusScope {
     property string homePath: FilePaths.home
     property color chipColor: Style.chipSurface
     property bool editing: false
+    property bool editable: true
+    property bool flat: false
+    property bool pill: false
+    signal editRequested
     property bool jumpMode: false
     property bool connecting: false
     property var backend: null
@@ -49,6 +53,7 @@ FocusScope {
     signal itemsDropped(string dest, var drop)
 
     readonly property var segments: bar.segmentsFor(path, homePath)
+    readonly property real frameRadius: pill ? Style.fullRadius(width, height) : FileBrowserMetrics.pathPillRadius
 
     function segmentsFor(path, home) {
         if (path === "")
@@ -82,6 +87,10 @@ FocusScope {
     }
 
     function startEditing() {
+        if (!editable) {
+            editRequested();
+            return;
+        }
         beginEditing(false, path);
         field.selectAll();
     }
@@ -347,85 +356,110 @@ FocusScope {
         onChosen: row => bar.openRow(row)
     }
 
-    DFlickable {
-        id: strip
-
-        readonly property bool mirrored: LayoutMirroring.enabled
-        readonly property real overflow: Math.max(0, contentWidth - width)
-
-        function scrollToCurrent() {
-            contentX = mirrored ? 0 : overflow;
-        }
+    Rectangle {
+        id: frame
 
         anchors.fill: parent
         visible: !bar.editing && !bar.connecting
-        wheelEnabled: false
-        clip: true
-        flickableDirection: Flickable.HorizontalFlick
-        contentWidth: Math.max(width, pills.width)
-        contentHeight: height
+        radius: bar.frameRadius
+        color: Style.foregroundColor(bar.chipColor, Style.isFloatingWindow(bar))
 
-        onContentWidthChanged: scrollToCurrent()
-        onWidthChanged: scrollToCurrent()
+        Rectangle {
+            anchors.fill: parent
+            radius: frame.radius
+            color: Style.surfaceText
+            opacity: stripArea.containsMouse && !bar.pill ? Style.stateLayerHover : 0
+        }
 
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => {
-                const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
-                strip.contentX = Math.max(0, Math.min(strip.contentWidth - strip.width, strip.contentX - delta));
+        DFlickable {
+            id: strip
+
+            readonly property bool mirrored: LayoutMirroring.enabled
+            readonly property real inset: Style.spacingXXS
+            readonly property real lead: bar.pill ? Style.spacingS : 0
+            readonly property real overflow: Math.max(0, contentWidth - width)
+
+            function scrollToCurrent() {
+                contentX = mirrored ? 0 : Math.max(0, contentWidth - width);
             }
-        }
 
-        MouseArea {
-            width: Math.max(strip.width, pills.width)
-            height: strip.height
-            cursorShape: Qt.PointingHandCursor
-            onClicked: bar.startEditing()
-        }
+            anchors.fill: parent
+            wheelEnabled: false
+            clip: true
+            flickableDirection: Flickable.HorizontalFlick
+            contentWidth: Math.max(width, pills.width + (inset + lead) * 2)
+            contentHeight: height
 
-        Row {
-            id: pills
+            onContentWidthChanged: scrollToCurrent()
+            onWidthChanged: scrollToCurrent()
 
-            x: strip.mirrored ? strip.contentWidth - width : 0
-            height: strip.height
-            spacing: FileBrowserMetrics.pathBarSpacing
+            WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: event => {
+                    const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
+                    strip.contentX = Math.max(0, Math.min(strip.contentWidth - strip.width, strip.contentX - delta));
+                }
+            }
 
-            Repeater {
-                model: bar.segments
+            MouseArea {
+                id: stripArea
 
-                Row {
-                    id: segment
+                width: strip.contentWidth
+                height: strip.height
+                hoverEnabled: true
+                cursorShape: Qt.IBeamCursor
+                onClicked: bar.startEditing()
+            }
 
-                    required property int index
-                    required property var modelData
+            Row {
+                id: pills
 
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: FileBrowserMetrics.pathBarSpacing
+                x: strip.mirrored ? strip.contentWidth - width - strip.inset - strip.lead : strip.inset + strip.lead
+                y: strip.inset
+                height: strip.height - strip.inset * 2
+                spacing: FileBrowserMetrics.pathBarSpacing
 
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: segment.index > 0
-                        text: "/"
-                        color: Style.outline
-                        font.pixelSize: Style.fontSizeMedium
-                    }
+                Repeater {
+                    model: bar.segments
 
-                    PathPill {
-                        id: pill
+                    Row {
+                        id: segment
 
-                        label: segment.modelData.iconName === "home" ? I18n.tr("Home", "file browser quick access location") : segment.modelData.label
-                        iconName: segment.modelData.iconName
-                        path: segment.modelData.path
-                        chipColor: bar.chipColor
-                        current: segment.index === bar.segments.length - 1
-                        dropEnabled: bar.dropEnabled
-                        onClicked: bar.pillClicked(segment.modelData.path)
-                        onMiddleClicked: bar.tabRequested(segment.modelData.path)
-                        onDropped: drop => bar.itemsDropped(segment.modelData.path, drop)
-                        onSpringLoaded: bar.navigated(segment.modelData.path)
-                        onMenuRequested: (pointX, pointY) => {
-                            const point = pill.mapToItem(bar, pointX, pointY);
-                            bar.menuRequested(segment.modelData.path, point.x, point.y);
+                        required property int index
+                        required property var modelData
+
+                        anchors.verticalCenter: pills.verticalCenter
+                        spacing: FileBrowserMetrics.pathBarSpacing
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: segment.index > 0
+                            text: "/"
+                            color: Style.outline
+                            font.pixelSize: Style.fontSizeMedium
+                        }
+
+                        PathPill {
+                            id: pill
+
+                            height: pills.height
+                            radius: Math.max(0, bar.frameRadius - strip.inset)
+                            label: segment.modelData.iconName === "home" ? I18n.tr("Home", "file browser quick access location") : segment.modelData.label
+                            iconName: bar.pill ? "" : segment.modelData.iconName
+                            path: segment.modelData.path
+                            flat: bar.flat || bar.pill
+                            chipColor: "transparent"
+                            current: segment.index === bar.segments.length - 1
+                            quiet: bar.pill && current
+                            dropEnabled: bar.dropEnabled
+                            onClicked: quiet ? bar.startEditing() : bar.pillClicked(segment.modelData.path)
+                            onMiddleClicked: bar.tabRequested(segment.modelData.path)
+                            onDropped: drop => bar.itemsDropped(segment.modelData.path, drop)
+                            onSpringLoaded: bar.navigated(segment.modelData.path)
+                            onMenuRequested: (pointX, pointY) => {
+                                const point = pill.mapToItem(bar, pointX, pointY);
+                                bar.menuRequested(segment.modelData.path, point.x, point.y);
+                            }
                         }
                     }
                 }
@@ -439,7 +473,10 @@ FocusScope {
         anchors.fill: parent
         visible: bar.editing || bar.connecting
         readOnly: bar.connecting
-        cornerRadius: FileBrowserMetrics.pathPillRadius
+        cornerRadius: bar.frameRadius
+        bottomLeftRadius: suggestionPopup.visible ? 0 : radius
+        bottomRightRadius: bottomLeftRadius
+        color: suggestionPopup.visible ? suggestionPopup.containerColor : Style.foregroundColor(backgroundColor, !usePopupTransparency)
         controlHeight: bar.height
         backgroundColor: bar.chipColor
         leftIconName: bar.jumpMode ? "history" : "edit_location"

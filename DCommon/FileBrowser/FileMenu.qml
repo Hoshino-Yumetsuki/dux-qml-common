@@ -11,6 +11,12 @@ Popup {
     property Item anchorItem: parent
     property Item highlightedItem: null
     default property alias rows: column.children
+    property Popup parentMenu: null
+    property Popup submenu: null
+    property Item submenuRow: null
+    property Item pointedRow: null
+    property bool coversParent: false
+    property string backText: I18n.tr("Back", "menu row that returns to the parent menu")
 
     readonly property bool motionEnabled: FileBrowserMetrics.animationsEnabled
 
@@ -18,6 +24,97 @@ Popup {
         x = pointX;
         y = pointY;
         open();
+    }
+
+    function openSubmenu(child, row) {
+        const source = row ?? activeRow();
+        const fromKeys = highlightedItem !== null && highlightedItem === source;
+        closeSubmenu();
+        submenu = child;
+        submenuRow = source;
+        highlight(source);
+        child.openBeside(root, source);
+        if (fromKeys)
+            child.highlightEdge(false);
+    }
+
+    function closeSubmenu() {
+        const child = submenu;
+        submenu = null;
+        submenuRow = null;
+        if (child)
+            child.close();
+    }
+
+    function openBeside(menu, row) {
+        const host = parent;
+        const frame = menu.background;
+        const edge = frame.mapToItem(null, 0, 0);
+        const after = edge.x + frame.width - FileBrowserMetrics.submenuOverlap;
+        const before = edge.x + FileBrowserMetrics.submenuOverlap - width;
+        const fitsAfter = after + width <= frame.Window.width;
+        const fitsBefore = before >= 0;
+        const preferAfter = I18n.isRtl ? !fitsBefore : fitsAfter || !fitsBefore;
+        const top = row ? row.mapToItem(null, 0, 0).y - topPadding : edge.y;
+        const point = host.mapFromItem(null, preferAfter ? after : before, top);
+        parentMenu = menu;
+        coversParent = !fitsAfter && !fitsBefore;
+        openAt(point.x, point.y);
+    }
+
+    function leaveSubmenu() {
+        closeSubmenu();
+        flick.forceActiveFocus();
+    }
+
+    function back() {
+        if (parentMenu)
+            parentMenu.leaveSubmenu();
+    }
+
+    function activeRow() {
+        if (highlightedItem && highlightedItem !== submenuRow)
+            return highlightedItem;
+        return navigableItems().find(item => item.hovered) ?? highlightedItem;
+    }
+
+    function rowAt(sceneX, sceneY) {
+        return navigableItems().find(item => item.contains(item.mapFromItem(null, sceneX, sceneY))) ?? null;
+    }
+
+    function aimsAtSubmenu(deltaX, deltaY) {
+        if (!submenu)
+            return false;
+        const side = submenu.background.mapToItem(null, 0, 0).x > background.mapToItem(null, 0, 0).x ? 1 : -1;
+        return deltaX * side > Math.abs(deltaY) * FileBrowserMetrics.submenuAimSlope;
+    }
+
+    function pointAt(row, aiming) {
+        if (row === pointedRow)
+            return;
+        pointedRow = row;
+        submenuIntent.stop();
+        if (!row || row === submenuRow)
+            return;
+        if (submenu && !aiming) {
+            followPointer();
+            return;
+        }
+        submenuIntent.restart();
+    }
+
+    function followPointer() {
+        const row = pointedRow;
+        if (!row || row === submenuRow)
+            return;
+        if (row.submenu) {
+            row.click();
+            return;
+        }
+        if (!submenu)
+            return;
+        leaveSubmenu();
+        highlight(null);
     }
 
     function navigableItems() {
@@ -78,13 +175,26 @@ Popup {
     width: FileBrowserMetrics.menuWidth
     padding: Style.spacingXS
     margins: 0
-    modal: true
+    modal: parentMenu === null
     dim: false
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: parentMenu ? Popup.NoAutoClose : Popup.CloseOnEscape | Popup.CloseOnPressOutside
     onAboutToShow: {
         highlight(null);
+        pointedRow = null;
         flick.contentY = 0;
+    }
+    onAboutToHide: {
+        closeSubmenu();
+        if (parentMenu?.submenu !== root)
+            return;
+        parentMenu.submenu = null;
+        parentMenu.submenuRow = null;
+        parentMenu.close();
+    }
+    onClosed: {
+        parentMenu = null;
+        coversParent = false;
     }
 
     background: Item {
@@ -119,6 +229,18 @@ Popup {
             case Qt.Key_K:
                 root.moveHighlight(-1);
                 break;
+            case Qt.Key_Left:
+            case Qt.Key_Backspace:
+            case Qt.Key_Escape:
+                if (!root.parentMenu)
+                    return;
+                root.back();
+                break;
+            case Qt.Key_Right:
+                if (!root.highlightedItem?.submenu)
+                    return;
+                root.highlightedItem.click();
+                break;
             case Qt.Key_Home:
                 root.highlightEdge(false);
                 break;
@@ -139,10 +261,31 @@ Popup {
         }
 
         HoverHandler {
+            property point restingSpot
+
+            // A resting pointer keeps reporting point changes.
             onPointChanged: {
-                if (root.highlightedItem)
+                const spot = point.scenePosition;
+                const deltaX = spot.x - restingSpot.x;
+                const deltaY = spot.y - restingSpot.y;
+                if (deltaX === 0 && deltaY === 0)
+                    return;
+                restingSpot = spot;
+                if (root.highlightedItem && root.highlightedItem !== root.submenuRow)
                     root.highlight(null);
+                root.pointAt(root.rowAt(spot.x, spot.y), root.aimsAtSubmenu(deltaX, deltaY));
             }
+            onHoveredChanged: {
+                if (!hovered)
+                    root.pointedRow = null;
+            }
+        }
+
+        Timer {
+            id: submenuIntent
+
+            interval: FileBrowserMetrics.submenuDelay
+            onTriggered: root.followPointer()
         }
 
         Column {
@@ -150,6 +293,17 @@ Popup {
 
             width: parent.width
             spacing: 0
+
+            FileMenuItem {
+                visible: root.coversParent
+                iconName: "arrow_back"
+                text: root.backText
+                onClicked: root.back()
+            }
+
+            FileMenuDivider {
+                visible: root.coversParent
+            }
         }
     }
 
@@ -162,14 +316,6 @@ Popup {
             to: 1
             duration: Style.expressiveDurations.expressiveEffects
             easing.bezierCurve: Style.expressiveCurves.expressiveEffects
-        }
-
-        DAnim {
-            property: "scale"
-            from: Style.popupEnterScale
-            to: 1
-            duration: Style.expressiveDurations.expressiveFastSpatial
-            easing.bezierCurve: Style.expressiveCurves.expressiveDefaultSpatial
         }
     }
 

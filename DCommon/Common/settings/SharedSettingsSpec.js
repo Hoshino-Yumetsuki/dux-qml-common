@@ -112,6 +112,9 @@ var SPEC = {
     padHours12Hour: {
         def: false
     },
+    showAmPm: {
+        def: true
+    },
     useFahrenheit: {
         def: false
     },
@@ -131,6 +134,9 @@ var SPEC = {
         def: "#6750A4"
     },
     scrollbarsEnabled: {
+        def: true
+    },
+    scrollShadowsEnabled: {
         def: true
     },
     blurBorderEnabled: {

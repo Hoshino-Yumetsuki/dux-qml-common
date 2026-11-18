@@ -43,9 +43,9 @@ FileItemSurface {
             "usedMs": model.usedMs ?? 0
         })
 
-    hitTargets: [visual, nameLabel, chevron].concat(Array.from(columns.children))
+    hitTargets: [visual, nameLabel, chevron]
 
-    width: view?.width ?? 0
+    width: view?.rowWidth ?? view?.width ?? 0
     height: view?.rowHeight ?? FileBrowserMetrics.listRowHeight
     selected: view?.selection?.contains(path) ?? false
     cursor: view?.selection?.showsCursor(path) ?? false
@@ -95,6 +95,7 @@ FileItemSurface {
                 color: row.supportingColor
                 font.pixelSize: Style.fontSizeSmall
                 elide: Text.ElideRight
+                wrapMode: Text.NoWrap
             }
         }
     }
@@ -126,7 +127,7 @@ FileItemSurface {
         text: FileFormat.highlight(FileFormat.shownName(row.displayName, row.name, row.isDir), row.highlight, row.selected ? row.contentColor : Style.primary)
         textFormat: row.highlight === "" ? Text.PlainText : Text.StyledText
         color: row.contentColor
-        font.pixelSize: Style.fontSizeMedium
+        font.pixelSize: FileBrowserSettings.fileNamePixelSize
         wrapMode: Text.NoWrap
         elide: Text.ElideMiddle
     }

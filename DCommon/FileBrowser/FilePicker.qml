@@ -286,6 +286,10 @@ FocusScope {
         const alt = (event.modifiers & Qt.AltModifier) !== 0;
         switch (event.key) {
         case Qt.Key_Escape:
+            if (browser.nameFilter !== "") {
+                browser.clearFilter();
+                break;
+            }
             root.rejected();
             break;
         case Qt.Key_Return:
@@ -416,6 +420,9 @@ FocusScope {
         listZoom: root.listZoom
         listColumns: ["size", "modified"]
         multiSelect: root.multiple
+        showFilter: true
+        typeAheadMode: "filter"
+        emptyText: nameFilter !== "" ? I18n.tr("No matches") : I18n.tr("This folder is empty", "empty directory placeholder")
         escapeClearsSelection: false
         paneColor: Style.isFloatingWindow(root) ? Style.floatingWindowNestedSurface : Style.nestedSurface
         chipColor: Style.chipSurfaceNested
@@ -525,8 +532,7 @@ FocusScope {
 
             DButton {
                 text: I18n.tr("Cancel", "file browser overwrite dialog cancel button")
-                backgroundColor: "transparent"
-                textColor: Style.primary
+                variant: "text"
                 onClicked: root.rejected()
             }
 
@@ -667,8 +673,7 @@ FocusScope {
         actions: [
             DButton {
                 text: I18n.tr("Cancel", "file browser overwrite dialog cancel button")
-                backgroundColor: "transparent"
-                textColor: Style.primary
+                variant: "text"
                 onClicked: newFolderDialog.rejected()
             },
             DButton {
@@ -704,14 +709,13 @@ FocusScope {
         actions: [
             DButton {
                 text: I18n.tr("Cancel", "file browser overwrite dialog cancel button")
-                backgroundColor: "transparent"
-                textColor: Style.primary
+                variant: "text"
                 onClicked: overwriteDialog.rejected()
             },
             DButton {
                 text: I18n.tr("Overwrite", "file browser overwrite dialog confirm button")
-                backgroundColor: Style.errorContainer
-                textColor: Style.onErrorContainer
+                variant: "tonal"
+                danger: true
                 onClicked: overwriteDialog.accepted()
             }
         ]

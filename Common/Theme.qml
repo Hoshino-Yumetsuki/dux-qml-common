@@ -57,6 +57,7 @@ Singleton {
     property color onSurfaceVariant
     property color onPrimaryContainer
     property color onSecondaryContainer
+    property color onError
     property color onErrorContainer
     property color onTertiaryContainer
     property color onSelectedContainer
@@ -67,6 +68,11 @@ Singleton {
             target: root
             property: "onSurfaceVariant_40"
             value: root.withAlpha(root.onSurfaceVariant, 0.4)
+        },
+        Binding {
+            target: root
+            property: "onError"
+            value: "#601410"
         },
         Binding {
             target: root
@@ -176,6 +182,7 @@ Singleton {
     property real spacingL: 16
     property real spacingXL: 24
 
+    readonly property real fontScale: 1
     property real fontSizeSmall: 12
     property real fontSizeMedium: 14
     property real fontSizeLarge: 16
@@ -256,6 +263,7 @@ Singleton {
     readonly property real sliderStopSize: 4
     readonly property real sliderTickSize: 3
     readonly property real sliderTrackMinAlpha: 0.4
+    readonly property real selectedLayerMinAlpha: 0.4
     readonly property real menuItemHeight: 40
     readonly property real outlineWidth: 1
     readonly property real outlineWidthFocused: 2

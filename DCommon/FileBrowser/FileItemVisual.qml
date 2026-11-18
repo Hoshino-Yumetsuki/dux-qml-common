@@ -23,7 +23,8 @@ Item {
     property int iconSize: Style.iconSize
     property color tint: Style.surfaceText
 
-    readonly property real emblemSize: Math.max(FileBrowserMetrics.emblemMinSize, iconSize * FileBrowserMetrics.emblemRatio)
+    readonly property real emblemSize: Math.round(Math.min(iconSize * FileBrowserMetrics.emblemMaxRatio, Math.max(FileBrowserMetrics.emblemMinSize, iconSize * FileBrowserMetrics.emblemRatio)))
+    readonly property real emblemInset: Math.round(iconSize * FileBrowserMetrics.emblemInsetRatio)
     readonly property var look: root.isDir && Host.appearance ? Host.appearance.lookup(root.path) : null
 
     implicitWidth: iconSize
@@ -60,6 +61,7 @@ Item {
     Loader {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
+        anchors.margins: root.emblemInset
         active: root.isSymlink
         sourceComponent: Emblem {
             iconName: root.symlinkBroken ? "link_off" : "link"
@@ -70,6 +72,7 @@ Item {
     Loader {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.margins: root.emblemInset
         active: root.untrusted || root.unreadable
         sourceComponent: Emblem {
             iconName: root.unreadable ? "lock" : "warning"
@@ -80,6 +83,7 @@ Item {
     Loader {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.margins: root.emblemInset
         active: (root.look?.emblem ?? "") !== "" && !root.untrusted && !root.unreadable
         sourceComponent: DSVGIcon {
             source: Paths.resolveIconPath(root.look?.emblem ?? "")

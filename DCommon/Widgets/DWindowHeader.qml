@@ -116,8 +116,6 @@ Item {
             visible: !root.compositorDecorated
             enabled: root.closeEnabled
             iconName: "close"
-            backgroundColor: Style.secondaryContainer
-            iconColor: Style.onSecondaryContainer
             tooltipText: root.closeTooltipText || null
             Accessible.name: root.closeTooltipText || I18n.tr("Close")
             onClicked: root.closeRequested()

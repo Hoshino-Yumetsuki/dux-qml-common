@@ -8,6 +8,8 @@ import qs.DCommon.Common
 Singleton {
     readonly property var legacyKeys: ["sortBy", "sortAscending", "iconSizeIndex"]
     readonly property bool showExtensions: Style.settings?.showExtensions ?? true
+    readonly property string dateFormat: Style.settings?.dateFormat ?? "locale"
+    readonly property real fileNamePixelSize: Style.settings?.fileNameSize ? Math.round(Style.settings.fileNameSize * Style.fontScale) : Style.fontSizeMedium
 
     function sortKeyFor(value) {
         switch (value) {
@@ -31,8 +33,11 @@ Singleton {
             "gridZoom": saved.gridZoom ?? saved.iconSizeIndex ?? FileBrowserMetrics.defaultGridZoom,
             "listZoom": saved.listZoom ?? FileBrowserMetrics.defaultListZoom,
             "showSidebar": saved.showSidebar ?? true,
+            "showPreview": saved.showPreview ?? true,
             "showHidden": saved.showHidden,
-            "lastPath": FilePaths.normalize(saved.lastPath ?? "")
+            "lastPath": FilePaths.normalize(saved.lastPath ?? ""),
+            "width": saved.width ?? 0,
+            "height": saved.height ?? 0
         };
     }
 

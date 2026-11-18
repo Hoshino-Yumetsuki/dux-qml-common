@@ -50,6 +50,7 @@ FocusScope {
     property var selected: []
     property real _lastActivation: 0
     property real _pendingScroll: -1
+    property string _enteringPath: ""
 
     readonly property var view: viewLoader.item
     readonly property bool columnsMode: viewMode === "columns" && directoryPool !== null
@@ -58,19 +59,18 @@ FocusScope {
     readonly property real columnZoomFactor: FileBrowserMetrics.columnZoomFactor(columnZoom)
     readonly property var iconSizes: FileBrowserMetrics.iconSizesFor(viewMode)
     readonly property real iconSize: iconSizes[Math.max(0, Math.min(iconSizes.length - 1, zoom))]
-    readonly property string fittingKey: {
-        let available = width - iconSize - FileBrowserMetrics.listRowPadding * 2 - FileBrowserMetrics.listRowGap - FileBrowserMetrics.nameColumnMinWidth;
-        const kept = [];
+    readonly property real listNameReserve: iconSize + FileBrowserMetrics.listRowPadding * 2 + FileBrowserMetrics.listRowGap + FileBrowserMetrics.nameColumnMinWidth
+    readonly property var listWidths: {
+        const widths = {};
+        const room = width - listNameReserve - FileBrowserMetrics.columnGap;
         for (const id of listColumns) {
-            const needed = columnWidthFor(id) + FileBrowserMetrics.columnGap;
-            if (needed > available)
-                break;
-            available -= needed;
-            kept.push(id);
+            const fallback = defaultColumnWidth(id);
+            widths[id] = Math.max(FileBrowserMetrics.columnMinWidth, Math.min(columnWidths[id] ?? fallback, Math.max(fallback, room)));
         }
-        return kept.join(",");
+        return widths;
     }
-    readonly property var fittingColumns: fittingKey === "" ? [] : fittingKey.split(",")
+    readonly property real listNaturalWidth: listColumns.reduce((total, id) => total + listWidths[id] + FileBrowserMetrics.columnGap, listNameReserve)
+    readonly property real listRowWidth: Math.max(width, listNaturalWidth)
     readonly property bool listing: directory.loading && directory.count === 0
     readonly property bool empty: !directory.loading && directory.error === "" && directory.count === 0
     readonly property var dragScrollTarget: dragScrollTargetFor(FileDragHover.area)
@@ -235,8 +235,22 @@ FocusScope {
 
     function enterCursor() {
         const entry = cursorEntry();
-        if (entry?.isDir)
-            openRequested(entry.path);
+        if (!entry?.isDir)
+            return;
+
+        openRequested(entry.path);
+        if (directory.path !== entry.path)
+            return;
+        _enteringPath = entry.path;
+        _selectEntered();
+    }
+
+    function _selectEntered() {
+        if (_enteringPath === "" || (directory.count === 0 && directory.loading))
+            return;
+        _enteringPath = "";
+        if (directory.count > 0 && selection.empty)
+            jumpTo(0, Qt.NoModifier);
     }
 
     function leaveColumn() {
@@ -276,8 +290,8 @@ FocusScope {
         itemMenuRequested(index, point.x, point.y, modifiers);
     }
 
-    function columnWidthFor(id) {
-        return columnWidths[id] ?? FileColumns.specFor(id)?.width ?? FileBrowserMetrics.columnMinWidth;
+    function defaultColumnWidth(id) {
+        return FileColumns.specFor(id)?.width ?? FileBrowserMetrics.columnMinWidth;
     }
 
     function zoomBy(step) {
@@ -421,7 +435,7 @@ FocusScope {
     }
 
     function requestCounts(first, last) {
-        if (!countFolders || viewMode !== "list" || !fittingColumns.includes("size"))
+        if (!countFolders || viewMode !== "list" || !listColumns.includes("size"))
             return;
         const wanted = [];
         for (let i = Math.max(0, first); i <= Math.min(last, directory.count - 1); i++) {
@@ -489,6 +503,7 @@ FocusScope {
     onDirectoryChanged: {
         selection.clear();
         renamingPath = "";
+        _enteringPath = "";
         typeAheadTimer.prefix = "";
         childCounts = ({});
         countsPending = ({});
@@ -516,6 +531,7 @@ FocusScope {
         function onPathReset() {
             body.selection.clear();
             body.renamingPath = "";
+            body._enteringPath = "";
             typeAheadTimer.prefix = "";
             body.childCounts = ({});
             body.countsPending = ({});
@@ -524,6 +540,7 @@ FocusScope {
 
         function onListed() {
             body._syncEntries();
+            body._selectEntered();
             body._applyPendingScroll();
             body.settleNow();
         }
@@ -698,9 +715,20 @@ FocusScope {
         event.accepted = true;
     }
 
-    WheelHandler {
-        acceptedModifiers: Qt.ControlModifier
-        onWheel: event => body.zoomBy(event.angleDelta.y > 0 ? 1 : -1)
+    function beginBand(pointX, pointY, modifiers) {
+        const point = view?.backdrop ? view.mapFromItem(body, pointX, pointY) : null;
+        if (point)
+            view.backdrop.beginBand(point.x, point.y, modifiers);
+    }
+
+    function dragBand(pointX, pointY) {
+        const point = view?.backdrop ? view.mapFromItem(body, pointX, pointY) : null;
+        if (point)
+            view.backdrop.dragBand(point.x, point.y);
+    }
+
+    function endBand() {
+        view?.backdrop?.endBand();
     }
 
     component ViewBackground: FileViewBackground {
@@ -729,8 +757,9 @@ FocusScope {
             renamingPath: body.renamingPath
             cutSet: body.cutSet
             childCounts: body.childCounts
-            columnIds: body.fittingColumns
-            storedWidths: body.columnWidths
+            columnIds: body.listColumns
+            storedWidths: body.listWidths
+            rowWidth: body.listRowWidth
             singleClickActivates: body.singleClickActivates
             nameHighlight: body.nameHighlight
             multiSelect: body.multiSelect
@@ -750,7 +779,11 @@ FocusScope {
             onContentYChanged: settle.restart()
             onCountChanged: settle.restart()
 
+            property Item backdrop: listBackdrop
+
             ViewBackground {
+                id: listBackdrop
+
                 view: listView
             }
         }
@@ -793,7 +826,11 @@ FocusScope {
             onContentYChanged: settle.restart()
             onCountChanged: settle.restart()
 
+            property Item backdrop: gridBackdrop
+
             ViewBackground {
+                id: gridBackdrop
+
                 view: gridView
             }
         }
@@ -802,8 +839,9 @@ FocusScope {
     component ColumnHeader: FileColumnHeader {
         id: columns
 
-        columnIds: body.fittingColumns
-        widths: body.columnWidths
+        listColumns: body.listColumns
+        columnIds: body.listColumns
+        widths: body.listWidths
         sortKey: body.sortKey
         sortDescending: body.sortDescending
         columnSortKeys: body.columnSortKeys
@@ -821,10 +859,11 @@ FocusScope {
         id: scrollingHeader
 
         Column {
-            width: parent?.width ?? 0
+            width: body.listRowWidth
 
             Loader {
-                width: parent.width
+                x: parent.ListView.view?.contentX ?? 0
+                width: body.width
                 sourceComponent: body.header
             }
 
@@ -834,14 +873,20 @@ FocusScope {
         }
     }
 
-    ColumnHeader {
+    Item {
         id: columnHeader
 
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         visible: body.viewMode === "list" && !body.columnsScroll
-        height: visible ? implicitHeight : 0
+        height: visible ? FileBrowserMetrics.columnHeaderHeight : 0
+        clip: true
+
+        ColumnHeader {
+            x: -(body.view?.contentX ?? 0)
+            width: body.listRowWidth
+        }
     }
 
     Loader {
@@ -889,5 +934,33 @@ FocusScope {
         count: body.selection.count
         bytes: body.selectedBytes()
         onCleared: body.selection.clear()
+    }
+
+    // Stacked above the views, which take every wheel event that reaches them
+    Item {
+        anchors.fill: parent
+
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            acceptedModifiers: Qt.ControlModifier
+            // One level per 15 degree notch: high-res wheels and touchpads send fractions of one
+            onRotationChanged: {
+                const steps = Math.trunc(rotation / 15);
+                if (steps === 0)
+                    return;
+                rotation -= steps * 15;
+                body.zoomBy(steps);
+            }
+            onActiveChanged: {
+                if (!active)
+                    rotation = 0;
+            }
+        }
+
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            acceptedModifiers: Qt.ShiftModifier
+            onWheel: event => (body.view?.activeList ?? body.view)?.scrollSideways?.(event)
+        }
     }
 }

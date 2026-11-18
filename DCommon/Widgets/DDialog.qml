@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import qs.DCommon.Common
+import "../Common/FocusNavigation.js" as FocusNavigation
 
 FocusScope {
     id: root
@@ -38,7 +39,7 @@ FocusScope {
 
     implicitWidth: maximumWidth
     implicitHeight: bodyTop + scrollBody.implicitHeight + actionFlow.implicitHeight + padding + (actionFlow.implicitHeight > 0 ? actionSpacing : 0)
-    focus: true
+    focus: embedded || opened
     Accessible.role: Accessible.Dialog
     Accessible.name: title
     Accessible.description: supportingText
@@ -83,7 +84,34 @@ FocusScope {
     }
 
     readonly property Item windowActiveFocusItem: root.Window.window?.activeFocusItem ?? null
-    onWindowActiveFocusItemChanged: revealFocus()
+    onWindowActiveFocusItemChanged: {
+        revealFocus();
+        if (!overlayOpen)
+            return;
+        if (FocusNavigation.keepsFocus(root, windowActiveFocusItem))
+            lastFocused = windowActiveFocusItem;
+        else
+            Qt.callLater(reclaimFocus);
+    }
+
+    // An overlay shares its window with the app and a FocusScope doesn't fence Tab, so focus would walk out behind
+    // the scrim, where Escape no longer reaches the dialog. Past either end it wraps instead.
+    readonly property bool overlayOpen: !embedded && opened && visible
+    property real overlayOpenedAt: 0
+    property Item lastFocused: null
+    onOverlayOpenChanged: {
+        overlayOpenedAt = overlayOpen ? Date.now() : 0;
+        lastFocused = null;
+    }
+
+    function reclaimFocus() {
+        const item = windowActiveFocusItem;
+        if (!overlayOpen || !item || FocusNavigation.keepsFocus(root, item))
+            return;
+        const stops = FocusNavigation.tabStops(surface);
+        const target = lastFocused === stops[0] ? stops[stops.length - 1] : stops[0];
+        (target ?? root).forceActiveFocus(Qt.TabFocusReason);
+    }
 
     data: [
         Rectangle {

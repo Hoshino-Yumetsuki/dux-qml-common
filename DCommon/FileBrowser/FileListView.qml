@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 
@@ -15,6 +16,7 @@ DListView {
     property var childCounts: ({})
     property var columnIds: []
     property var storedWidths: ({})
+    property real rowWidth: width
     property bool dragEnabled: true
     property bool dropEnabled: true
     property bool multiSelect: true
@@ -27,6 +29,8 @@ DListView {
     readonly property real rowHeight: FileBrowserMetrics.listRowHeightFor(iconSize, compact)
     readonly property real rowPitch: rowHeight + spacing
     readonly property real contentOrigin: headerItem ? headerItem.y + headerItem.height : originY
+    readonly property real leadingX: I18n.isRtl ? Math.max(0, contentWidth - width) : 0
+    property bool atLeading: true
 
     signal itemClicked(int index, int modifiers)
     signal itemActivated(int index)
@@ -57,7 +61,17 @@ DListView {
         return out;
     }
 
+    onLeadingXChanged: {
+        if (atLeading)
+            contentX = leadingX;
+        atLeading = Math.abs(contentX - leadingX) < 1;
+    }
+    onContentXChanged: atLeading = Math.abs(contentX - leadingX) < 1
+
     clip: true
+    contentWidth: rowWidth
+    sidewaysTarget: list
+    flickableDirection: rowWidth > width ? Flickable.HorizontalAndVerticalFlick : Flickable.VerticalFlick
     keyNavigationEnabled: false
     activeFocusOnTab: false
     spacing: Style.groupedListGap
@@ -68,5 +82,9 @@ DListView {
 
     delegate: FileRow {
         view: list
+    }
+
+    ScrollBar.horizontal: DHorizontalScrollbar {
+        targetFlickable: list
     }
 }

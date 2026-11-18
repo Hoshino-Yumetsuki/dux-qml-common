@@ -44,8 +44,11 @@ Singleton {
     readonly property color primaryText: theme?.primaryText ?? "#381E72"
     readonly property color primaryContainer: theme?.primaryContainer ?? "#4F378B"
     readonly property real selectedContainerTint: theme?.selectedContainerTint ?? 0.2
-    readonly property bool themedSelectedContainer: theme?.themedSelectedContainer ?? (Contrast.isTonal(secondaryContainer, onSecondaryContainer) && Contrast.isTonal(secondaryContainer, surfaceText))
-    readonly property color selectedContainer: theme?.selectedContainer ?? (themedSelectedContainer ? secondaryContainer : Contrast.subtleTint(surfaceContainerHigh, primary, surfaceText, selectedContainerTint))
+    // A selected row has to read against the rows beside it and the surface behind them
+    readonly property var selectionNeighbors: [hostSurface, cardSurface, chipSurface]
+    readonly property real selectedContainerDistinction: 1.15
+    readonly property bool themedSelectedContainer: theme?.themedSelectedContainer ?? (Contrast.isTonal(secondaryContainer, onSecondaryContainer) && Contrast.isTonal(secondaryContainer, surfaceText) && Contrast.worstRatio(secondaryContainer, selectionNeighbors) >= selectedContainerDistinction)
+    readonly property color selectedContainer: theme?.selectedContainer ?? (themedSelectedContainer ? secondaryContainer : Contrast.distinctTint(chipSurface, primary, surfaceText, selectedContainerTint, selectionNeighbors, selectedContainerDistinction))
     readonly property color accentOnSelectedContainer: theme?.accentOnSelectedContainer ?? (Contrast.ratio(primary, selectedContainer) >= 3 ? primary : onSelectedContainer)
     readonly property color accentOnPrimaryContainer: theme?.accentOnPrimaryContainer ?? (Contrast.ratio(primary, primaryContainer) >= 3 ? primary : onPrimaryContainer)
     readonly property var accents: theme?.accents ?? Accents.derive(primary, isLightMode, null)
@@ -68,9 +71,9 @@ Singleton {
     readonly property color surfaceContainerHighest: theme?.surfaceContainerHighest ?? "#36343b"
     readonly property color surfaceBright: theme?.surfaceBright ?? "#3b383e"
     readonly property color surfaceDim: theme?.surfaceDim ?? "#141218"
-    readonly property color hostSurface: theme?.hostSurface ?? surface
+    readonly property color hostSurface: theme?.hostSurface ?? (isLightMode ? surfaceContainerHighest : surface)
     readonly property color cardSurface: theme?.cardSurface ?? surfaceContainer
-    readonly property color chipSurface: theme?.chipSurface ?? surfaceContainerHigh
+    readonly property color chipSurface: theme?.chipSurface ?? (isLightMode ? surface : surfaceContainerHigh)
     readonly property color chipSurfaceNested: theme?.chipSurfaceNested ?? surfaceContainerHighest
     readonly property color tooltipSurface: theme?.tooltipSurface ?? inverseSurface
     readonly property color tooltipText: theme?.tooltipText ?? Contrast.readableOn(tooltipSurface, [inverseOnSurface, surfaceText, contrastLight, contrastDark])
@@ -86,6 +89,7 @@ Singleton {
     property color onSurfaceVariant
     property color onPrimaryContainer
     property color onSecondaryContainer
+    property color onError
     property color onErrorContainer
     property color onTertiaryContainer
     property color onSelectedContainer
@@ -99,6 +103,11 @@ Singleton {
             target: root
             property: "onSurfaceVariant_40"
             value: root.theme?.onSurfaceVariant_40 ?? "#66CAC4D0"
+        },
+        Binding {
+            target: root
+            property: "onError"
+            value: root.theme?.onError ?? Contrast.readableOn(root.error, [root.contrastLight, root.contrastDark])
         },
         Binding {
             target: root
@@ -182,6 +191,10 @@ Singleton {
         return blendAlpha(baseColor, floatingWindow ? floatingWindowForegroundAlpha : foregroundAlpha);
     }
 
+    function selectedColor(floatingWindow = false) {
+        return blendAlpha(selectedContainer, Math.max(selectedLayerMinAlpha, floatingWindow ? floatingWindowForegroundAlpha : foregroundAlpha));
+    }
+
     readonly property color floatingSurface: theme?.floatingSurface ?? withAlpha(hostSurface, popupTransparency)
     readonly property color nestedSurface: theme?.nestedSurface ?? foregroundColor(cardSurface)
     readonly property real floatingWindowTransparency: theme?.floatingWindowTransparency ?? popupTransparency
@@ -230,8 +243,10 @@ Singleton {
     readonly property bool shapeMorph: theme?.shapeMorph ?? true
     readonly property bool pillControls: theme?.pillControls ?? true
 
+    // Steps of 4 keep a raster within a few pixels of the size it is drawn at, and bound how often
+    // a size animation reloads it.
     function iconRasterSize(size) {
-        return Math.max(32, Math.ceil(size / 16) * 16);
+        return Math.max(16, Math.ceil(size / 4) * 4);
     }
 
     function scaledRadius(radius, limit) {
@@ -266,6 +281,7 @@ Singleton {
     readonly property real spacingXL: theme?.spacingXL ?? 24
     readonly property real fontSizeXSmall: theme?.fontSizeXSmall ?? 10
     readonly property real fontSizeSmall: theme?.fontSizeSmall ?? 12
+    readonly property real fontScale: theme?.fontScale ?? 1
     readonly property real fontSizeMedium: theme?.fontSizeMedium ?? 14
     readonly property real fontSizeLarge: theme?.fontSizeLarge ?? 16
     readonly property real fontSizeXLarge: theme?.fontSizeXLarge ?? 20
@@ -315,6 +331,7 @@ Singleton {
     readonly property real sliderStopSize: theme?.sliderStopSize ?? 4
     readonly property real sliderTickSize: theme?.sliderTickSize ?? 3
     readonly property real sliderTrackMinAlpha: theme?.sliderTrackMinAlpha ?? 0.4
+    readonly property real selectedLayerMinAlpha: theme?.selectedLayerMinAlpha ?? 0.4
     readonly property real menuItemHeight: theme?.menuItemHeight ?? 40
     readonly property real outlineWidth: theme?.outlineWidth ?? 1
     readonly property real outlineWidthFocused: theme?.outlineWidthFocused ?? 2
@@ -402,6 +419,7 @@ Singleton {
     readonly property string fontFamily: theme?.fontFamily ?? Fonts.sans
     readonly property string monoFontFamily: theme?.monoFontFamily ?? Fonts.mono
     readonly property string displayFontFamily: theme?.displayFontFamily ?? Fonts.display
+    readonly property string passwordMaskCharacter: "●"
 
     function fontFor(token) {
         switch (token) {
@@ -559,6 +577,7 @@ Singleton {
     readonly property bool enableRippleEffects: settings?.enableRippleEffects ?? true
     readonly property bool popoutElevationEnabled: settings?.popoutElevationEnabled ?? true
     readonly property bool scrollbarsEnabled: settings?.scrollbarsEnabled ?? true
+    readonly property bool scrollShadowsEnabled: settings?.scrollShadowsEnabled ?? true
     readonly property int textRenderType: settings?.textRenderType ?? Style.TextRenderType.Qt
     readonly property int textRenderQuality: settings?.textRenderQuality ?? Style.TextRenderQuality.Default
     readonly property bool powerActionConfirm: settings?.powerActionConfirm ?? true

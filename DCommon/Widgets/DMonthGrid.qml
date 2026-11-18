@@ -28,6 +28,14 @@ Item {
 
     readonly property int columns: 7
     readonly property int rows: 6
+    readonly property var dayDots: {
+        revision;
+        const dots = [];
+        for (let i = 0; i < columns * rows; i++)
+            dots.push(dotColorsFor ? (dotColorsFor(dateAt(i)) ?? []) : []);
+        return dots;
+    }
+    readonly property bool hasDots: dayDots.some(colors => colors.length > 0)
     readonly property bool floatingWindow: Style.isFloatingWindow(root)
     readonly property int firstFocusIndex: {
         for (let i = 0; i < columns * rows; i++) {
@@ -150,17 +158,22 @@ Item {
                 event.accepted = true;
             }
 
-            FocusRing {
-                visible: cell.visualFocus
+            Loader {
+                anchors.fill: parent
+                anchors.margins: -Style.focusRingOffset
+                active: cell.visualFocus
+
+                sourceComponent: FocusRing {
+                    anchors.margins: 0
+                    radius: Math.min(Style.fullRadius(width, height), cell.radius + Style.focusRingOffset)
+                    visible: true
+                }
             }
             readonly property bool inMonth: dayDate.getMonth() === root.displayDate.getMonth()
             readonly property bool isToday: root.sameDay(dayDate, root.today)
             readonly property bool isSelected: root.sameDay(dayDate, root.selectedDate)
             readonly property bool weekend: root.highlightWeekends && root.isWeekend(dayDate)
-            readonly property var dotColors: {
-                root.revision;
-                return root.dotColorsFor ? (root.dotColorsFor(dayDate) ?? []) : [];
-            }
+            readonly property var dotColors: root.dayDots[index] ?? []
             readonly property int extraCount: Math.max(0, dotColors.length - root.maxDots)
 
             x: mirrored ? root.width - root.gridLeft - (index % root.columns) * (root.cellWidth + root.cellGap) - width : root.gridLeft + (index % root.columns) * (root.cellWidth + root.cellGap)
@@ -182,7 +195,7 @@ Item {
 
             StyledText {
                 anchors.top: parent.top
-                anchors.topMargin: Style.spacingXS
+                anchors.topMargin: root.hasDots ? Style.spacingXS : (parent.height - height) / 2
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: cell.dayDate.getDate()
                 font.pixelSize: Style.fontSizeMedium
@@ -199,34 +212,42 @@ Item {
                 }
             }
 
-            Row {
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottomMargin: Style.spacingXS
-                spacing: Style.spacingXXS
-                visible: cell.dotColors.length > 0
+            Loader {
+                anchors.fill: parent
+                active: cell.dotColors.length > 0
 
-                Repeater {
-                    model: cell.dotColors.slice(0, root.maxDots)
+                sourceComponent: Item {
+                    Row {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottomMargin: Style.spacingXXS
+                        height: extraLabel.implicitHeight
+                        spacing: Style.spacingXXS
 
-                    Rectangle {
-                        required property var modelData
+                        Repeater {
+                            model: cell.dotColors.slice(0, root.maxDots)
 
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: Style.spacingXS
-                        height: Style.spacingXS
-                        radius: Style.fullRadius(width, height)
-                        color: modelData
+                            Rectangle {
+                                required property var modelData
+
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Style.spacingXS
+                                height: Style.spacingXS
+                                radius: Style.fullRadius(width, height)
+                                color: modelData
+                            }
+                        }
+
+                        StyledText {
+                            id: extraLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "+" + cell.extraCount
+                            font.pixelSize: Style.fontSizeSmall
+                            font.weight: Style.fontWeightMedium
+                            color: cell.isSelected ? Style.onPrimary : Style.primary
+                            visible: cell.extraCount > 0
+                        }
                     }
-                }
-
-                StyledText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "+" + cell.extraCount
-                    font.pixelSize: Style.fontSizeSmall
-                    font.weight: Style.fontWeightMedium
-                    color: cell.isSelected ? Style.onPrimary : Style.primary
-                    visible: cell.extraCount > 0
                 }
             }
 

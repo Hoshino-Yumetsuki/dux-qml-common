@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import qs.DCommon.Common
+import qs.DCommon.Widgets
 import "NameFilter.js" as NameFilter
 
 FocusScope {
@@ -13,6 +14,7 @@ FocusScope {
     property var backend: Host.files
     property bool showSidebar: true
     property bool showNavigation: true
+    property bool showPathBar: true
     property bool showHidden: false
     property var filters: []
     property string sortKey: "name"
@@ -36,8 +38,11 @@ FocusScope {
     property string emptyText: I18n.tr("This folder is empty", "empty directory placeholder")
     property Component header: null
     property Component pathBarTrailing: null
+    property Item pathBarHost: null
     property var cutSet: ({})
     property string nameFilter: ""
+    // The built-in field writes nameFilter, so hosts that bind nameFilter leave this off.
+    property bool showFilter: false
     property bool singleClickActivates: false
     property bool typeAheadEnabled: true
     property string typeAheadMode: "jump"
@@ -51,6 +56,7 @@ FocusScope {
     property var unlistedPaths: []
     property color paneColor: "transparent"
     property color chipColor: Style.chipSurface
+    property color pathBarColor: chipColor
     property real paneRadius: FileBrowserMetrics.paneRadius
     property real paneMargin: FileBrowserMetrics.paneMargin
     property real paneMarginHorizontal: FileBrowserMetrics.paneMarginHorizontal
@@ -63,6 +69,7 @@ FocusScope {
     readonly property alias canGoForward: history.canGoForward
     readonly property alias canGoUp: history.canGoUp
     readonly property bool editingPath: pathBar.editing || pathBar.connecting
+    readonly property bool pathBarHosted: pathBarHost !== null
     readonly property bool renaming: viewBody.renamingPath !== ""
     property int sidebarBreakpoint: FileBrowserMetrics.sidebarBreakpoint
     readonly property bool sidebarShown: showSidebar && width >= sidebarBreakpoint
@@ -89,6 +96,7 @@ FocusScope {
     signal columnResizeRequested(string id, real width)
     signal columnPaneResizeRequested(real width)
     signal previewToggleRequested
+    signal previewKeyRequested(string action, int step)
     signal previewResized(real width)
     signal focusRequested
     signal tabRequested(string path)
@@ -177,6 +185,22 @@ FocusScope {
 
     function focusBody() {
         viewBody.focusBody();
+    }
+
+    function clearFilter() {
+        filterField.clear();
+    }
+
+    function _typeIntoFilter(text) {
+        filterField.text += text;
+        filterField.forceActiveFocus();
+        filterField.cursorPosition = filterField.text.length;
+    }
+
+    function _focusFirstMatch() {
+        viewBody.focusBody();
+        if (directory.count > 0)
+            viewBody.jumpTo(0, Qt.NoModifier);
     }
 
     function beginRename(target) {
@@ -273,7 +297,10 @@ FocusScope {
     NavigationHistory {
         id: history
 
-        onEntering: target => root.navigating(target)
+        onEntering: target => {
+            filterField.text = "";
+            root.navigating(target);
+        }
         onRestored: saved => {
             if (!saved)
                 return;
@@ -311,7 +338,7 @@ FocusScope {
         Item {
             id: topbar
 
-            readonly property bool shown: root.showNavigation || toolbarExtras.children.length > 0
+            readonly property bool shown: root.showNavigation || root.showFilter || toolbarExtras.children.length > 0
 
             anchors.top: parent.top
             anchors.left: parent.left
@@ -329,6 +356,37 @@ FocusScope {
                 forwardEnabled: root.canGoForward
                 onBackRequested: root.back()
                 onForwardRequested: root.forward()
+            }
+
+            DSearchField {
+                id: filterField
+
+                anchors.left: navPair.visible ? navPair.right : parent.left
+                anchors.right: toolbarExtras.left
+                anchors.leftMargin: navPair.visible ? FileBrowserMetrics.controlSpacing : 0
+                anchors.rightMargin: toolbarExtras.width > 0 ? FileBrowserMetrics.controlSpacing : 0
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.showFilter
+                fieldHeight: FileBrowserMetrics.controlSize
+                backgroundColor: Style.chipSurface
+                borderWidth: 0
+                placeholderText: I18n.tr("Search...")
+                onTextChanged: {
+                    if (root.showFilter)
+                        root.nameFilter = text;
+                }
+                onAccepted: root._focusFirstMatch()
+                Keys.onReturnPressed: event => event.accepted = true
+                Keys.onEnterPressed: event => event.accepted = true
+                Keys.onDownPressed: root._focusFirstMatch()
+                Keys.onEscapePressed: event => {
+                    if (text === "") {
+                        event.accepted = false;
+                        return;
+                    }
+                    clear();
+                    root.focusBody();
+                }
             }
 
             Row {
@@ -361,6 +419,20 @@ FocusScope {
                 anchors.fill: parent
                 anchors.rightMargin: drawer.width
 
+                MouseArea {
+                    anchors.fill: parent
+                    onPressed: mouse => {
+                        const point = mapToItem(viewBody, mouse.x, mouse.y);
+                        viewBody.beginBand(point.x, point.y, mouse.modifiers);
+                    }
+                    onPositionChanged: mouse => {
+                        const point = mapToItem(viewBody, mouse.x, mouse.y);
+                        viewBody.dragBand(point.x, point.y);
+                    }
+                    onReleased: viewBody.endBand()
+                    onCanceled: viewBody.endBand()
+                }
+
                 TapHandler {
                     acceptedButtons: Qt.RightButton
                     onTapped: point => {
@@ -379,20 +451,31 @@ FocusScope {
                 onDropped: drop => root.itemsDropped(root.directory.path, drop)
             }
 
-            PathBar {
-                id: pathBar
+            Item {
+                id: pathSlot
 
                 readonly property bool trailingShown: pathBarTrailingLoader.visible && pathBarTrailingLoader.width > 0
 
+                visible: root.showPathBar && !root.pathBarHosted
+                height: visible ? pathBar.implicitHeight : 0
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: trailingShown ? pathBarTrailingLoader.left : parent.right
-                anchors.topMargin: root.paneMargin
+                anchors.topMargin: visible ? root.paneMargin : 0
                 anchors.leftMargin: root.paneMarginHorizontal
                 anchors.rightMargin: trailingShown ? FileBrowserMetrics.contentSpacing : root.paneMarginHorizontal
+            }
+
+            PathBar {
+                id: pathBar
+
+                parent: root.pathBarHost ?? pathSlot
+                anchors.fill: parent
+                visible: root.showPathBar
                 path: root.path
                 homePath: root.homePath
-                chipColor: root.chipColor
+                chipColor: root.pathBarHosted ? root.pathBarColor : root.chipColor
+                pill: root.pathBarHosted
                 folderJump: root.folderJump
                 backend: root.backend
                 dropEnabled: root.dropEnabled
@@ -421,16 +504,16 @@ FocusScope {
 
                 anchors.right: parent.right
                 anchors.rightMargin: root.paneMarginHorizontal
-                anchors.verticalCenter: pathBar.verticalCenter
+                anchors.verticalCenter: pathSlot.verticalCenter
                 active: root.pathBarTrailing !== null
-                visible: !root.editingPath
+                visible: !root.editingPath && pathSlot.visible
                 sourceComponent: root.pathBarTrailing
             }
 
             FileViewBody {
                 id: viewBody
 
-                anchors.top: pathBar.bottom
+                anchors.top: pathSlot.bottom
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
@@ -471,8 +554,20 @@ FocusScope {
                 homePath: root.homePath
                 nameHighlight: NameFilter.needle(root.nameFilter)
                 filtering: root.nameFilter !== ""
-                onFilterRequested: text => root.filterRequested(text)
-                onFilterFocusRequested: root.filterFocusRequested()
+                onFilterRequested: text => {
+                    if (root.showFilter) {
+                        root._typeIntoFilter(text);
+                        return;
+                    }
+                    root.filterRequested(text);
+                }
+                onFilterFocusRequested: {
+                    if (root.showFilter) {
+                        filterField.forceActiveFocus();
+                        return;
+                    }
+                    root.filterFocusRequested();
+                }
                 onActivateRequested: entry => root.activateRequested(entry)
                 onItemMenuRequested: (index, pointX, pointY, modifiers) => {
                     root.focusRequested();
@@ -504,7 +599,9 @@ FocusScope {
                         root.previewToggleRequested();
                         return;
                     }
-                    drawer.handleKey(action, step);
+                    root.previewKeyRequested(action, step);
+                    if (root.previewDrawer)
+                        drawer.handleKey(action, step);
                 }
                 onFocusRequested: {
                     root._pendingReveal = [];

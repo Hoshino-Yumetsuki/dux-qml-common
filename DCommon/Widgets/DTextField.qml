@@ -21,6 +21,7 @@ StyledRect {
     property alias cursorPosition: textInput.cursorPosition
     property string placeholderText: ""
     property string labelText: ""
+    property bool alwaysFloatLabel: false
     property bool outlined: false
     property bool isError: false
     property string supportingText: ""
@@ -97,6 +98,7 @@ StyledRect {
 
     signal textEdited
     signal editingFinished
+    signal cleared
     signal accepted
     signal focusStateChanged(bool hasFocus)
 
@@ -137,7 +139,7 @@ StyledRect {
     }
 
     readonly property real labelBandHeight: Math.round(Style.fontSizeSmall * 1.4) + Style.spacingXS * 2
-    readonly property bool labelFloated: root.inputFocused || text.length > 0 || root.composing
+    readonly property bool labelFloated: root.alwaysFloatLabel || root.inputFocused || text.length > 0 || root.composing
     readonly property real labelProgress: Math.max(0, Math.min(1, labelMotion.value))
     readonly property real containerTop: outlined && labelText ? Style.outlinedFieldLabelLineHeight / 2 : 0
     readonly property string shownPlaceholderText: expressive && labelText ? labelText : placeholderText
@@ -494,6 +496,7 @@ StyledRect {
         verticalAlignment: TextInput.AlignVCenter
         selectByMouse: true
         echoMode: root.passwordVisible && root.echoMode === TextInput.Password ? TextInput.Normal : root.echoMode
+        passwordCharacter: Style.passwordMaskCharacter
         clip: true
         activeFocusOnTab: root.enabled && !root.imeShielded
         cursorVisible: root.inputFocused
@@ -593,12 +596,16 @@ StyledRect {
             visible: active && root.text.length > 0
             sourceComponent: DActionButton {
                 focusPolicy: Qt.TabFocus
+                objectName: "clearButton"
                 Accessible.name: I18n.tr("Clear")
                 buttonSize: root.accessorySize
                 iconName: "close"
                 iconSize: root.outlined ? Style.iconSize : Style.iconSizeSmall
                 iconColor: root.outlined && root.isError ? (fieldHover.hovered && !root.inputFocused ? Style.onErrorContainer : Style.error) : Style.onSurfaceVariant
-                onClicked: textInput.text = ""
+                onClicked: {
+                    root.cleared();
+                    root.clear();
+                }
             }
         }
 

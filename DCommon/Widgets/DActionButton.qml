@@ -1,5 +1,6 @@
 import QtQuick
 import qs.DCommon.Common
+import "../Common/Contrast.js" as Contrast
 
 StyledButton {
     id: root
@@ -10,7 +11,8 @@ StyledButton {
     property bool iconFilled: false
     property color backgroundColor: "transparent"
     property color stateColor: iconColor
-    property color focusRingColor: Style.focusRingColor
+    property real stateLayerInset: 0
+    property color focusRingColor: backgroundColor.a === 0 || Contrast.ratio(Style.focusRingColor, backgroundColor) >= 3 ? Style.focusRingColor : iconColor
     property bool circular: true
     property int buttonSize: Style.buttonHeightXS
     property var tooltipText: null
@@ -45,8 +47,8 @@ StyledButton {
     FocusRing {
         visible: root.visualFocus
         border.color: root.focusRingColor
-        anchors.margins: Style.focusRingWidth / 2
-        radius: Math.max(0, parent.radius - Style.focusRingWidth / 2)
+        anchors.margins: root.stateLayerInset + Style.focusRingWidth / 2
+        radius: Math.max(0, parent.radius - root.stateLayerInset - Style.focusRingWidth / 2)
     }
 
     DIcon {
@@ -59,6 +61,12 @@ StyledButton {
 
     StateLayer {
         id: stateLayer
+        anchors.margins: root.stateLayerInset
+        cornerRadius: Math.max(0, root.radius - root.stateLayerInset)
+        topLeftRadius: Math.max(0, root.topLeftRadius - root.stateLayerInset)
+        topRightRadius: Math.max(0, root.topRightRadius - root.stateLayerInset)
+        bottomLeftRadius: Math.max(0, root.bottomLeftRadius - root.stateLayerInset)
+        bottomRightRadius: Math.max(0, root.bottomRightRadius - root.stateLayerInset)
         control: root
         disabled: !root.enabled
         stateColor: root.stateColor

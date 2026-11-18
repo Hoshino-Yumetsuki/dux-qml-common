@@ -30,7 +30,8 @@ StyledButton {
     signal springLoaded
     signal middleClicked
 
-    readonly property bool showAction: actionIcon !== "" && (hovered || actionArea.containsMouse)
+    readonly property bool iconOnly: width < FileBrowserMetrics.sidebarIconOnlyBelow
+    readonly property bool showAction: actionIcon !== "" && !iconOnly && (hovered || actionArea.containsMouse)
     readonly property var look: row.path !== "" && Host.appearance ? Host.appearance.lookup(row.path) : null
     readonly property color contentColor: {
         if (!enabled)
@@ -38,11 +39,57 @@ StyledButton {
         return selected ? Style.onSelectedContainer : Style.surfaceText;
     }
 
+    component RevealText: Item {
+        id: reveal
+
+        property alias text: content.text
+        property alias color: content.color
+        property alias font: content.font
+        property real shift: 0
+
+        readonly property real overflow: Math.max(0, content.implicitWidth - width)
+        readonly property bool active: overflow > 0 && (row.hovered || row.visualFocus) && FileBrowserMetrics.animationsEnabled
+
+        implicitHeight: content.implicitHeight
+        clip: true
+        onActiveChanged: {
+            slide.stop();
+            shift = 0;
+            if (active)
+                slide.start();
+        }
+
+        StyledText {
+            id: content
+
+            anchors.left: parent.left
+            anchors.leftMargin: -reveal.shift
+            width: reveal.active ? implicitWidth : reveal.width
+            wrapMode: Text.NoWrap
+            elide: reveal.active ? Text.ElideNone : Text.ElideMiddle
+        }
+
+        SequentialAnimation {
+            id: slide
+
+            PauseAnimation {
+                duration: FileBrowserMetrics.labelRevealDelay
+            }
+
+            NumberAnimation {
+                target: reveal
+                property: "shift"
+                to: reveal.overflow
+                duration: reveal.overflow / FileBrowserMetrics.labelRevealSpeed * 1000
+            }
+        }
+    }
+
     focusPolicy: Qt.TabFocus
     width: parent?.width ?? 0
     implicitHeight: Math.max(FileBrowserMetrics.sidebarRowHeight, labels.implicitHeight + Style.spacingM)
     radius: FileBrowserMetrics.sidebarRowRadius
-    color: dropZone.containsDrag ? Style.primaryContainer : selected ? Style.selectedContainer : "transparent"
+    color: dropZone.containsDrag ? Style.primaryContainer : selected ? Style.selectedColor(Style.isFloatingWindow(row)) : "transparent"
     Accessible.name: label
     Accessible.description: tooltipText
 
@@ -64,7 +111,11 @@ StyledButton {
 
     StateLayer {
         control: row
-        tooltipText: actionArea.containsMouse && row.actionTooltip !== "" ? "" : row.tooltipText
+        tooltipText: {
+            if (actionArea.containsMouse && row.actionTooltip !== "")
+                return "";
+            return row.iconOnly ? [row.label, row.tooltipText].filter(text => text !== "").join("\n") : row.tooltipText;
+        }
         tooltipMultiline: true
         stateColor: row.contentColor
     }
@@ -77,8 +128,8 @@ StyledButton {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: Style.spacingS
-        anchors.rightMargin: Style.spacingM
+        anchors.leftMargin: FileBrowserMetrics.sidebarRowInset
+        anchors.rightMargin: row.iconOnly ? FileBrowserMetrics.sidebarRowInset : Style.spacingM
         spacing: Style.spacingM
 
         DRingGauge {
@@ -92,7 +143,7 @@ StyledButton {
             Rectangle {
                 anchors.fill: parent
                 radius: row.ringValue >= 0 ? width / 2 : Style.fullRadius(width, height)
-                color: row.showAction ? Style.primaryContainer : Style.withAlpha(Style.primary, Style.tonalTintAlpha)
+                color: row.showAction ? Style.primaryContainer : row.ringValue >= 0 ? Style.withAlpha(Style.primary, Style.tonalTintAlpha) : "transparent"
 
                 DSpinner {
                     anchors.centerIn: parent
@@ -152,7 +203,7 @@ StyledButton {
                     id: actionArea
 
                     anchors.fill: parent
-                    enabled: row.actionIcon !== "" && !row.busy
+                    enabled: row.actionIcon !== "" && !row.busy && !row.iconOnly
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: row.actionTriggered()
@@ -163,31 +214,28 @@ StyledButton {
         ColumnLayout {
             id: labels
 
+            visible: !row.iconOnly
             Layout.fillWidth: true
             spacing: Style.spacingXS
 
-            StyledText {
+            RevealText {
                 Layout.fillWidth: true
                 text: row.label
                 color: row.contentColor
                 font.pixelSize: Style.fontSizeMedium
-                wrapMode: Text.NoWrap
-                elide: Text.ElideMiddle
             }
 
-            StyledText {
+            RevealText {
                 Layout.fillWidth: true
                 visible: row.subtitle !== ""
                 text: row.subtitle
                 color: row.selected || !row.enabled ? row.contentColor : Style.onSurfaceVariant
                 font.pixelSize: Style.fontSizeSmall
-                wrapMode: Text.NoWrap
-                elide: Text.ElideMiddle
             }
         }
 
         DIcon {
-            visible: row.expandable
+            visible: row.expandable && !row.iconOnly
             name: "expand_more"
             size: FileBrowserMetrics.sidebarGlyphSize
             color: row.contentColor
